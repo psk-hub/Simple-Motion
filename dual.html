@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simple Motion Control — Rockwell &amp; Siemens Dual-Platform Servo Axis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d11;
+    --panel: #14171d;
+    --panel-2: #1c2028;
+    --line: #2a2f38;
+    --ink: #e8eaf0;
+    --ink-dim: #8a8e98;
+    --ink-low: #555964;
+    --ab: #cc0000;                /* Allen-Bradley / Rockwell red */
+    --ab-glow: rgba(204, 0, 0, 0.18);
+    --siemens: #009999;            /* Siemens petrol/teal */
+    --siemens-glow: rgba(0, 153, 153, 0.18);
+    --packml: #ffaa00;             /* PackML / shared layer amber */
+    --packml-glow: rgba(255, 170, 0, 0.15);
+    --cip: #00d4aa;
+    --green: #34c759;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Fraunces', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.65;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(204,0,0,0.05), transparent 42%),
+      radial-gradient(circle at 88% 8%, rgba(0,153,153,0.05), transparent 42%),
+      radial-gradient(circle at 50% 80%, rgba(255,170,0,0.03), transparent 50%);
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+    background-size: 36px 36px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .statusbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(11,13,17,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-dim);
+  }
+  .statusbar .left, .statusbar .right { display: flex; gap: 24px; align-items: center; }
+  .led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ab);
+    box-shadow: 0 0 8px var(--ab-glow);
+    animation: pulse 2s infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .led.s { background: var(--siemens); box-shadow: 0 0 8px var(--siemens-glow); animation-delay: 1s; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero {
+    padding: 80px 0 60px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 60px;
+    align-items: start;
+  }
+  .hero-tag {
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ink-dim);
+  }
+  .hero-tag .ab-pill { color: var(--ab); border-left: 2px solid var(--ab); padding-left: 10px; }
+  .hero-tag .s-pill { color: var(--siemens); border-left: 2px solid var(--siemens); padding-left: 10px; }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(40px, 5.5vw, 76px);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin-bottom: 24px;
+    color: var(--ink);
+  }
+  .hero h1 em.r {
+    font-style: italic;
+    color: var(--ab);
+    font-weight: 300;
+  }
+  .hero h1 em.s {
+    font-style: italic;
+    color: var(--siemens);
+    font-weight: 300;
+  }
+  .hero-sub {
+    color: var(--ink-dim);
+    font-size: 15px;
+    line-height: 1.7;
+    max-width: 640px;
+    margin-bottom: 40px;
+  }
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .meta-cell {
+    flex: 1;
+    min-width: 130px;
+    padding: 16px 20px;
+    border-right: 1px solid var(--line);
+  }
+  .meta-cell:last-child { border-right: none; }
+  .meta-label {
+    font-size: 10px;
+    color: var(--ink-low);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 6px;
+  }
+  .meta-value {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Dual platform comparison card */
+  .platform-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 24px;
+    position: relative;
+  }
+  .platform-card::before {
+    content: 'TWO PLATFORMS / ONE DESIGN';
+    position: absolute;
+    top: -1px;
+    right: 20px;
+    background: var(--bg);
+    color: var(--packml);
+    padding: 2px 10px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+  }
+  .platform-title {
+    font-size: 10px;
+    color: var(--ink-low);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .platform-card svg { width: 100%; height: auto; display: block; }
+
+  section {
+    padding: 80px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .section-header {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 40px;
+    margin-bottom: 48px;
+    align-items: baseline;
+  }
+  .section-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--packml);
+  }
+  .section-num span { color: var(--ink-low); margin-right: 12px; }
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.5vw, 44px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .section-title em.r { font-style: italic; color: var(--ab); }
+  .section-title em.s { font-style: italic; color: var(--siemens); }
+  .section-title em.p { font-style: italic; color: var(--packml); }
+
+  .prose {
+    max-width: 820px;
+    color: var(--ink);
+    font-size: 14.5px;
+    line-height: 1.75;
+  }
+  .prose p + p { margin-top: 1.2em; }
+  .prose strong {
+    color: var(--ink);
+    font-weight: 600;
+    background: var(--packml-glow);
+    padding: 1px 4px;
+  }
+  .prose code {
+    color: var(--packml);
+    background: rgba(255,170,0,0.08);
+    padding: 1px 6px;
+    font-size: 12.5px;
+  }
+
+  /* Platform-tagged content split */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 32px;
+  }
+  .split-side {
+    background: var(--panel);
+    padding: 32px;
+    position: relative;
+  }
+  .split-side.r {
+    border-top: 3px solid var(--ab);
+  }
+  .split-side.s {
+    border-top: 3px solid var(--siemens);
+  }
+  .split-side-tag {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .split-side.r .split-side-tag { color: var(--ab); }
+  .split-side.s .split-side-tag { color: var(--siemens); }
+  .split-side-label {
+    font-size: 11px;
+    color: var(--ink-low);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .split-side h3 {
+    font-family: var(--serif);
+    font-size: 21px;
+    color: var(--ink);
+    line-height: 1.25;
+    margin-bottom: 16px;
+    font-weight: 400;
+  }
+  .split-side p {
+    color: var(--ink-dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .split-side p + p { margin-top: 12px; }
+  .split-side code {
+    background: rgba(255,170,0,0.08);
+    color: var(--packml);
+    padding: 1px 5px;
+    font-size: 11.5px;
+  }
+  .split-side.r code { color: var(--ab); background: rgba(204,0,0,0.08); }
+  .split-side.s code { color: var(--siemens); background: rgba(0,153,153,0.08); }
+
+  /* Idiom mapping table */
+  .idiom-table {
+    border: 1px solid var(--line);
+    margin-top: 32px;
+  }
+  .idiom-row {
+    display: grid;
+    grid-template-columns: 240px 1fr 1fr;
+    border-bottom: 1px solid var(--line);
+    transition: background 0.2s;
+  }
+  .idiom-row:last-child { border-bottom: none; }
+  .idiom-row:hover { background: var(--panel-2); }
+  .idiom-row.header { background: var(--panel-2); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-low); }
+  .idiom-row.header .h-r { color: var(--ab); }
+  .idiom-row.header .h-s { color: var(--siemens); }
+  .idiom-cell {
+    padding: 14px 20px;
+    font-size: 13px;
+    border-right: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+  }
+  .idiom-cell:last-child { border-right: none; }
+  .idiom-concept { color: var(--ink); font-weight: 500; font-size: 12.5px; }
+  .idiom-r { color: var(--ab); font-family: var(--mono); font-size: 12.5px; }
+  .idiom-s { color: var(--siemens); font-family: var(--mono); font-size: 12.5px; }
+
+  /* Phase list */
+  .phase-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 32px;
+  }
+  .phase {
+    background: var(--panel);
+    padding: 26px 32px;
+    display: grid;
+    grid-template-columns: 70px 260px 1fr;
+    gap: 24px;
+    align-items: start;
+    transition: background 0.3s;
+    border-left: 3px solid transparent;
+  }
+  .phase.r { border-left-color: var(--ab); }
+  .phase.s { border-left-color: var(--siemens); }
+  .phase:hover { background: var(--panel-2); }
+  .phase-num {
+    font-family: var(--serif);
+    font-size: 32px;
+    line-height: 1;
+    font-weight: 300;
+  }
+  .phase.r .phase-num { color: var(--ab); }
+  .phase.s .phase-num { color: var(--siemens); }
+  .phase-tag {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .phase.r .phase-tag { color: var(--ab); }
+  .phase.s .phase-tag { color: var(--siemens); }
+  .phase-title {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .phase-body {
+    color: var(--ink-dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .phase-body code {
+    color: var(--packml);
+    background: rgba(255,170,0,0.08);
+    padding: 1px 5px;
+    font-size: 11.5px;
+  }
+  .phase-body strong { color: var(--ink); font-weight: 600; }
+
+  /* PackML state diagram */
+  .packml-states {
+    margin-top: 32px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 40px 32px;
+    overflow-x: auto;
+  }
+  .packml-title {
+    font-size: 10px;
+    color: var(--ink-low);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .state-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    min-width: 820px;
+  }
+  .state {
+    text-align: center;
+    padding: 22px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    position: relative;
+    transition: transform 0.3s;
+  }
+  .state:hover { transform: translateY(-3px); }
+  .state.idle { border-top: 3px solid var(--green); }
+  .state.starting { border-top: 3px solid var(--packml); }
+  .state.execute { border-top: 3px solid var(--cip); }
+  .state.aborting { border-top: 3px solid var(--ab); }
+  .state.aborted { border-top: 3px solid var(--ink-low); }
+  .state.resetting { border-top: 3px solid var(--siemens); }
+  .state-name {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--ink);
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .state-bit {
+    font-size: 10px;
+    color: var(--ink-low);
+    letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+  .state-desc {
+    font-size: 10.5px;
+    color: var(--ink-dim);
+    line-height: 1.5;
+  }
+  .state-arrow {
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ink-low);
+    font-size: 12px;
+    z-index: 2;
+  }
+  .state:last-child .state-arrow { display: none; }
+
+  /* Figure cards */
+  .figs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .figs.single { grid-template-columns: 1fr; max-width: 900px; margin-left: auto; margin-right: auto; }
+  .fig {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 16px;
+    transition: border-color 0.3s;
+  }
+  .fig.r { border-top: 3px solid var(--ab); }
+  .fig.s { border-top: 3px solid var(--siemens); }
+  .fig:hover { border-color: var(--packml); }
+  .fig img {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: #fff;
+    border: 1px solid var(--line);
+    margin-bottom: 12px;
+  }
+  .fig-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .fig.r .fig-label { color: var(--ab); }
+  .fig.s .fig-label { color: var(--siemens); }
+  .fig-caption {
+    color: var(--ink-dim);
+    font-size: 12.5px;
+    line-height: 1.65;
+  }
+  .fig-caption strong { color: var(--ink); font-weight: 600; }
+  .fig-caption code {
+    color: var(--packml);
+    background: rgba(255,170,0,0.08);
+    padding: 1px 4px;
+    font-size: 11px;
+  }
+
+  /* Hardware spec cards */
+  .hw-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .hw-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 28px;
+  }
+  .hw-card.r { border-left: 3px solid var(--ab); }
+  .hw-card.s { border-left: 3px solid var(--siemens); }
+  .hw-card-tag {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .hw-card.r .hw-card-tag { color: var(--ab); }
+  .hw-card.s .hw-card-tag { color: var(--siemens); }
+  .hw-card h3 {
+    font-family: var(--serif);
+    font-size: 20px;
+    color: var(--ink);
+    margin-bottom: 18px;
+    font-weight: 400;
+  }
+  .hw-spec {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 6px 16px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .hw-spec:last-child { border-bottom: none; }
+  .hw-spec-k {
+    font-size: 10px;
+    color: var(--ink-low);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  .hw-spec-v {
+    color: var(--ink);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .hw-spec-v code {
+    color: var(--cip);
+    background: rgba(0,212,170,0.08);
+    padding: 1px 5px;
+    font-size: 11.5px;
+  }
+
+  /* Skills grid */
+  .skills-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 32px;
+  }
+  .skill {
+    background: var(--panel);
+    padding: 24px;
+  }
+  .skill-name {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--packml);
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+  .skill ul {
+    list-style: none;
+    color: var(--ink-dim);
+    font-size: 12.5px;
+    line-height: 1.8;
+  }
+  .skill ul li {
+    padding-left: 16px;
+    position: relative;
+  }
+  .skill ul li::before {
+    content: '\2192';
+    position: absolute;
+    left: 0;
+    color: var(--ink-low);
+  }
+
+  .outcome {
+    background: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--line);
+    padding: 48px;
+    margin-top: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .outcome::before {
+    content: 'BOTH BUILDS COMMISSIONED';
+    position: absolute;
+    top: 20px;
+    right: 32px;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--green);
+    border: 1px solid var(--green);
+    padding: 4px 12px;
+  }
+  .outcome p {
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--ink);
+    max-width: 820px;
+  }
+  .outcome p em.r { color: var(--ab); font-style: italic; }
+  .outcome p em.s { color: var(--siemens); font-style: italic; }
+
+  footer {
+    padding: 60px 0 40px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-low);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  footer .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .section-header { grid-template-columns: 1fr; gap: 16px; }
+    .split { grid-template-columns: 1fr; }
+    .hw-grid { grid-template-columns: 1fr; }
+    .figs { grid-template-columns: 1fr; }
+    .skills-grid { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: 50px 1fr; }
+    .phase-body { grid-column: 2; }
+    .idiom-row { grid-template-columns: 1fr; }
+    .idiom-cell { border-right: none; border-bottom: 1px solid var(--line); }
+    .idiom-row.header { display: none; }
+    .state-row { grid-template-columns: 1fr; }
+    .state-arrow { display: none; }
+    .statusbar { padding: 10px 16px; font-size: 10px; }
+    .statusbar .right .hide-mobile { display: none; }
+    .container { padding: 0 16px; }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade { animation: fadeUp 0.8s ease-out backwards; }
+  .fade-1 { animation-delay: 0.1s; }
+  .fade-2 { animation-delay: 0.2s; }
+  .fade-3 { animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+
+<div class="statusbar">
+  <div class="left">
+    <span><span class="led"></span>1756-L71 &middot; 131.151.52.204</span>
+    <span class="hide-mobile"><span class="led s"></span>S7-1516 &middot; 192.168.0.13</span>
+  </div>
+  <div class="right">
+    <span class="hide-mobile">EE 5345 &middot; LAB 1R / 1S</span>
+    <span>STUDIO 5000 + TIA V18</span>
+  </div>
+</div>
+
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-tag fade fade-1">
+          <span class="ab-pill">Rockwell &middot; Kinetix 5300</span>
+          <span class="s-pill">Siemens &middot; SINAMICS S120</span>
+        </div>
+        <h1 class="fade fade-2">Simple Motion <em class="r">on</em> <em class="s">two</em> platforms</h1>
+        <p class="hero-sub fade fade-3">
+          A single-axis PackML-structured motion-control project implemented twice &mdash; once on
+          Allen-Bradley ControlLogix with a Kinetix 5300 Ethernet/IP servo, once on Siemens
+          S7-1500 with a SINAMICS S120 PROFINET drive. Same logical design, same state machine,
+          same operator interface; different idioms underneath.
+        </p>
+        <div class="hero-meta">
+          <div class="meta-cell">
+            <div class="meta-label">Controllers</div>
+            <div class="meta-value">L71 + S7-1516</div>
+          </div>
+          <div class="meta-cell">
+            <div class="meta-label">Drives</div>
+            <div class="meta-value">K5300 + S120</div>
+          </div>
+          <div class="meta-cell">
+            <div class="meta-label">States</div>
+            <div class="meta-value">6 &middot; PackML</div>
+          </div>
+          <div class="meta-cell">
+            <div class="meta-label">Steps</div>
+            <div class="meta-value">10 &middot; CM00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dual platform comparison SVG -->
+      <div class="platform-card fade fade-3">
+        <div class="platform-title">PARALLEL ARCHITECTURES</div>
+        <svg viewBox="0 0 380 440" xmlns="http://www.w3.org/2000/svg">
+          <!-- Shared design banner at top -->
+          <rect x="40" y="14" width="300" height="32" fill="none" stroke="#ffaa00" stroke-width="1.4" stroke-dasharray="3,2"/>
+          <text x="190" y="30" fill="#ffaa00" font-family="JetBrains Mono" font-size="9" text-anchor="middle">SAME LOGICAL DESIGN</text>
+          <text x="190" y="42" fill="#555964" font-family="JetBrains Mono" font-size="7" text-anchor="middle">PackML &middot; UP &rarr; EM &rarr; CM hierarchy</text>
+
+          <!-- ROCKWELL column -->
+          <g>
+            <rect x="20" y="60" width="160" height="350" fill="none" stroke="#cc0000" stroke-width="1.2"/>
+            <rect x="20" y="60" width="160" height="22" fill="#cc0000"/>
+            <text x="100" y="76" fill="#fff" font-family="JetBrains Mono" font-size="9" text-anchor="middle" font-weight="700">ROCKWELL</text>
+
+            <!-- Controller -->
+            <rect x="32" y="94" width="136" height="36" fill="#1c2028" stroke="#cc0000" stroke-width="1"/>
+            <text x="100" y="108" fill="#e8eaf0" font-family="JetBrains Mono" font-size="9" text-anchor="middle">1756-L71</text>
+            <text x="100" y="122" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">ControlLogix &middot; Rev 37</text>
+
+            <!-- EN2TR bridge -->
+            <rect x="32" y="138" width="136" height="32" fill="#1c2028" stroke="#cc0000" stroke-width="1"/>
+            <text x="100" y="152" fill="#e8eaf0" font-family="JetBrains Mono" font-size="9" text-anchor="middle">1756-EN2TR</text>
+            <text x="100" y="164" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">slot 7 &middot; EtherNet/IP</text>
+
+            <!-- Network labeled link -->
+            <line x1="100" y1="170" x2="100" y2="200" stroke="#cc0000" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <text x="100" y="184" fill="#cc0000" font-family="JetBrains Mono" font-size="6" text-anchor="middle" transform="rotate(-90 100 184)">EtherNet/IP</text>
+
+            <!-- Servo drive -->
+            <rect x="32" y="208" width="136" height="38" fill="#1c2028" stroke="#cc0000" stroke-width="1"/>
+            <text x="100" y="222" fill="#e8eaf0" font-family="JetBrains Mono" font-size="8" text-anchor="middle">Kinetix 5300</text>
+            <text x="100" y="234" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">2198-C1004-ERS</text>
+            <text x="100" y="244" fill="#555964" font-family="JetBrains Mono" font-size="6" text-anchor="middle">.204 &middot; 0.4 kW</text>
+
+            <!-- Motor + load -->
+            <circle cx="100" cy="278" r="14" fill="#1c2028" stroke="#cc0000" stroke-width="1.4"/>
+            <line x1="100" y1="269" x2="100" y2="287" stroke="#cc0000" stroke-width="1.2"/>
+            <line x1="91" y1="278" x2="109" y2="278" stroke="#cc0000" stroke-width="1.2"/>
+            <text x="100" y="304" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">TLY-A220T</text>
+            <text x="100" y="314" fill="#555964" font-family="JetBrains Mono" font-size="6" text-anchor="middle">rotary servo</text>
+
+            <!-- linear actuator -->
+            <line x1="100" y1="320" x2="100" y2="340" stroke="#cc0000" stroke-width="1"/>
+            <rect x="36" y="345" width="128" height="22" fill="none" stroke="#cc0000" stroke-width="1"/>
+            <line x1="36" y1="356" x2="164" y2="356" stroke="#cc0000" stroke-width="0.7" stroke-dasharray="2,2"/>
+            <rect x="68" y="350" width="12" height="12" fill="#cc0000" opacity="0.7"/>
+            <text x="100" y="380" fill="#e8eaf0" font-family="JetBrains Mono" font-size="8" text-anchor="middle">Macron MSA-628</text>
+            <text x="100" y="392" fill="#8a8e98" font-family="JetBrains Mono" font-size="6" text-anchor="middle">5:1 gear &middot; 100 mm</text>
+            <text x="100" y="402" fill="#cc0000" font-family="JetBrains Mono" font-size="6" text-anchor="middle">LINEAR</text>
+          </g>
+
+          <!-- SIEMENS column -->
+          <g>
+            <rect x="200" y="60" width="160" height="350" fill="none" stroke="#009999" stroke-width="1.2"/>
+            <rect x="200" y="60" width="160" height="22" fill="#009999"/>
+            <text x="280" y="76" fill="#fff" font-family="JetBrains Mono" font-size="9" text-anchor="middle" font-weight="700">SIEMENS</text>
+
+            <!-- Controller -->
+            <rect x="212" y="94" width="136" height="36" fill="#1c2028" stroke="#009999" stroke-width="1"/>
+            <text x="280" y="108" fill="#e8eaf0" font-family="JetBrains Mono" font-size="9" text-anchor="middle">CPU 1516-3</text>
+            <text x="280" y="122" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">S7-1500 &middot; V2.8</text>
+
+            <!-- IO modules -->
+            <rect x="212" y="138" width="64" height="32" fill="#1c2028" stroke="#009999" stroke-width="1"/>
+            <text x="244" y="152" fill="#e8eaf0" font-family="JetBrains Mono" font-size="8" text-anchor="middle">DI 32</text>
+            <text x="244" y="163" fill="#8a8e98" font-family="JetBrains Mono" font-size="6" text-anchor="middle">slot 2</text>
+
+            <rect x="284" y="138" width="64" height="32" fill="#1c2028" stroke="#009999" stroke-width="1"/>
+            <text x="316" y="152" fill="#e8eaf0" font-family="JetBrains Mono" font-size="8" text-anchor="middle">DO 32</text>
+            <text x="316" y="163" fill="#8a8e98" font-family="JetBrains Mono" font-size="6" text-anchor="middle">slot 3</text>
+
+            <!-- PROFINET link -->
+            <line x1="280" y1="170" x2="280" y2="200" stroke="#009999" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <text x="280" y="184" fill="#009999" font-family="JetBrains Mono" font-size="6" text-anchor="middle" transform="rotate(-90 280 184)">PROFINET IRT</text>
+
+            <!-- Servo drive -->
+            <rect x="212" y="208" width="136" height="38" fill="#1c2028" stroke="#009999" stroke-width="1"/>
+            <text x="280" y="222" fill="#e8eaf0" font-family="JetBrains Mono" font-size="8" text-anchor="middle">SINAMICS S120</text>
+            <text x="280" y="234" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">CU310-2 PN V5.2</text>
+            <text x="280" y="244" fill="#555964" font-family="JetBrains Mono" font-size="6" text-anchor="middle">servo-3 &middot; .13</text>
+
+            <!-- Motor -->
+            <circle cx="280" cy="278" r="14" fill="#1c2028" stroke="#009999" stroke-width="1.4"/>
+            <line x1="280" y1="269" x2="280" y2="287" stroke="#009999" stroke-width="1.2"/>
+            <line x1="271" y1="278" x2="289" y2="278" stroke="#009999" stroke-width="1.2"/>
+            <text x="280" y="304" fill="#8a8e98" font-family="JetBrains Mono" font-size="7" text-anchor="middle">rotary servo</text>
+            <text x="280" y="314" fill="#555964" font-family="JetBrains Mono" font-size="6" text-anchor="middle">abs encoder</text>
+
+            <!-- Rotary indicator -->
+            <line x1="280" y1="320" x2="280" y2="340" stroke="#009999" stroke-width="1"/>
+            <g transform="translate(280, 365)">
+              <circle cx="0" cy="0" r="20" fill="none" stroke="#009999" stroke-width="1.2"/>
+              <path d="M -16 0 A 16 16 0 0 1 16 0" stroke="#009999" stroke-width="1.2" fill="none" stroke-dasharray="2,2"/>
+              <line x1="0" y1="0" x2="14" y2="-7" stroke="#009999" stroke-width="1.5"/>
+              <polygon points="14,-7 9,-9 12,-3" fill="#009999"/>
+            </g>
+            <text x="280" y="402" fill="#009999" font-family="JetBrains Mono" font-size="6" text-anchor="middle">ROTARY &middot; 1000&deg;</text>
+          </g>
+
+          <!-- Bridging PackML layer at bottom -->
+          <line x1="100" y1="412" x2="280" y2="412" stroke="#ffaa00" stroke-width="0.8" stroke-dasharray="2,2"/>
+          <text x="190" y="426" fill="#ffaa00" font-family="JetBrains Mono" font-size="7" text-anchor="middle">SHARED PACKML / UP &middot; EM &middot; CM</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OVERVIEW -->
+<section id="overview">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>01</span>Project Overview</div>
+      <h2 class="section-title">The cornerstone of <em class="p">EE 5345</em> motion.</h2>
+    </div>
+    <div class="prose">
+      <p>
+        This project is the cornerstone lab of the <strong>EE 5345 PLC Motion Control</strong>
+        graduate course. The assignment was to build the same single-axis motion-control
+        application on two different industrial-automation ecosystems &mdash; Rockwell (Lab 1R)
+        and Siemens (Lab 1S) &mdash; so that the logical design, the PackML state model, and the
+        operator interface stay constant while the hardware, the configuration idioms, and the
+        vendor toolchains all change underneath.
+      </p>
+      <p>
+        The deliverables: a complete Studio 5000 Logix Designer project that drives a Kinetix 5300
+        servo through a 100&nbsp;mm linear move and return, and a complete TIA Portal V18 project
+        that drives a SINAMICS S120 servo through a 1000&deg; rotary move and return &mdash; both
+        wrapped in a shared simplified PackML state machine and exercised through operator
+        pushbuttons, indicator lamps, and servo tuning trends.
+      </p>
+      <p>
+        The project builds the practical muscle every entry-level motion engineer needs:
+        configuring a servo drive and its axis object from scratch, writing a step-sequenced
+        motion procedure, closing an operator-facing mode/state machine on top of it, and tuning
+        the velocity and position loops on a real drive with live trend data.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>02</span>System Architecture</div>
+      <h2 class="section-title">Three layers, <em class="p">two</em> implementations.</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        Both implementations share the same three-layer ISA-TR88 structure so the ported design
+        reads cleanly across vendors. A <strong>Unit Procedure</strong> (<code>UN01_ExampleMachine</code>)
+        owns the PackML state machine and mode toggle, an <strong>Equipment Module</strong>
+        (<code>EM01_Axis01</code>) owns one servo axis and the manual-jog controls, and a small
+        stack of <strong>Control Modules</strong> (<code>CM00_Procedure</code>,
+        <code>CM02_ServoAxisObject</code>, <code>CM03_ServoAxisJog</code>) encapsulates the
+        low-level motion primitives. Adding a second axis is an EM-level instantiation rather
+        than a new program.
+      </p>
+    </div>
+
+    <div class="split">
+      <div class="split-side r">
+        <div class="split-side-tag">Rockwell &middot; Lab 1R</div>
+        <div class="split-side-label">Studio 5000 / Ladder Diagram</div>
+        <h3>1756-L71 ControlLogix + Kinetix 5300</h3>
+        <p>
+          1756-L71 (Rev 37) in the local chassis, <code>1756-EN2TR</code> Ethernet/IP scanner in
+          slot 7 (Rev 12.001), a <code>2198-C1004-ERS</code> Kinetix 5300 single-axis servo drive
+          (Rev 13.002) at <code>131.151.52.204</code> paired with a <code>TLY-A220T-HJ62AN</code>
+          rotary servo motor.
+        </p>
+        <p>
+          MainTask configured as a 30 ms periodic task with a 2.0 ms Motion Group base update
+          period. Project organized under a single <code>MainTask / MainProgram</code> split
+          between the unit program <code>UN01_ExampleMachine</code> and the equipment program
+          <code>EM01_Axis01</code>.
+        </p>
+      </div>
+      <div class="split-side s">
+        <div class="split-side-tag">Siemens &middot; Lab 1S</div>
+        <div class="split-side-label">TIA Portal V18 / LAD</div>
+        <h3>S7-1516 + SINAMICS S120</h3>
+        <p>
+          SIMATIC S7-1500 CPU <code>1516-3 PN/DP</code> (V2.8) with a <code>SINAMICS S120 CU310-2
+          PN V5.2</code> PROFINET drive at <code>192.168.0.13</code>, plus 32-pt DI in slot 2 and
+          32-pt DO in slot 3.
+        </p>
+        <p>
+          PROFINET IRT with Standard Telegram 5 (PZD-9/9), 4 ms Send Clock, 20 % communication
+          load, <code>MC-Servo OB91</code> configured with Factor = 2. Function-block model
+          throughout: <code>FB100 UN01_00_Main</code> and <code>FB200 EM01_00_Main</code> called
+          from <code>OB1</code> with matching <code>DB100</code> / <code>DB200</code> instance DBs.
+        </p>
+      </div>
+    </div>
+
+    <div class="figs">
+      <div class="fig r">
+        <img src="images/axis_fig_clogix_tree.png" alt="Rockwell project tree">
+        <div class="fig-label">Fig. 01 &middot; Rockwell Project Tree</div>
+        <div class="fig-caption"><strong>Studio 5000 Controller Organizer.</strong> <code>UN01_ExampleMachine</code> unit program holds MainRoutine and <code>UP01_PackML</code>; <code>EM01_Axis01</code> equipment program holds MainRoutine, <code>CM00_Procedure</code>, <code>CM02_ServoAxisObject</code>, and <code>CM03_ServoAxisJog</code>. <code>Motion_Group</code> contains <code>Axis_1</code>.</div>
+      </div>
+      <div class="fig s">
+        <img src="images/axis_fig_s7_main.png" alt="Siemens Main OB1">
+        <div class="fig-label">Fig. 02 &middot; Siemens Main [OB1]</div>
+        <div class="fig-caption"><strong>TIA Portal V18.</strong> Network 1 calls <code>UN01_00_Main (FB100 / DB100)</code> for the PackML unit; Network 2 calls <code>EM01_00_Main (FB200 / DB200)</code> for the axis equipment module; Network 3 handles the first-scan reset. The UP &rarr; EM &rarr; CM hierarchy matches the Rockwell project one-for-one.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HARDWARE -->
+<section id="hardware">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>03</span>Hardware Stack</div>
+      <h2 class="section-title">Linear on <em class="r">red</em>, rotary on <em class="s">teal</em>.</h2>
+    </div>
+
+    <div class="hw-grid">
+      <div class="hw-card r">
+        <div class="hw-card-tag">Rockwell / Linear Stage</div>
+        <h3>Kinetix 5300 &rarr; TLY motor &rarr; Macron MSA-628</h3>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Controller</div>
+          <div class="hw-spec-v"><code>1756-L71</code> ControlLogix, Rev 37, periodic MainTask at 30 ms</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Network</div>
+          <div class="hw-spec-v"><code>1756-EN2TR</code> Rev 12.001 in slot 7, Time Sync &amp; Motion enabled, drive at <code>131.151.52.204</code></div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Drive</div>
+          <div class="hw-spec-v"><code>2198-C1004-ERS</code> Kinetix 5300, 85&ndash;253 V, 0.4 kW, Rev 13.002</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Motor</div>
+          <div class="hw-spec-v"><code>TLY-A220T-HJ62AN</code> rotary servo</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Mechanics</div>
+          <div class="hw-spec-v"><code>Macron MSA-628</code> linear stage, 5:1 gearbox, belt &amp; pulley, 33.42 mm pulley dia</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Motion Group</div>
+          <div class="hw-spec-v">2.0 ms base update period, <code>Axis_1</code> assigned</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Move</div>
+          <div class="hw-spec-v">100 mm forward &rarr; 1 s dwell &rarr; 100 mm reverse</div>
+        </div>
+      </div>
+
+      <div class="hw-card s">
+        <div class="hw-card-tag">Siemens / Rotary</div>
+        <h3>S7-1516 &rarr; SINAMICS S120 &rarr; rotary servo</h3>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Controller</div>
+          <div class="hw-spec-v">SIMATIC S7-1500 CPU <code>1516-3 PN/DP</code> (6ES7 516-3AN01-0AB0), V2.8</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Network</div>
+          <div class="hw-spec-v">PROFINET IRT, Standard Telegram 5 (PZD-9/9), 4 ms Send Clock, 20 % comm load, sync master = PLC</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Drive</div>
+          <div class="hw-spec-v"><code>SINAMICS S120 CU310-2 PN V5.2</code> named <code>servo-3</code> at <code>192.168.0.13</code></div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Encoder</div>
+          <div class="hw-spec-v">Absolute, 512 inc/rev, 4096 revs, <code>Gx_XIST1</code> = 11 bits, <code>Gx_XIST2</code> = 9 bits</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">I/O</div>
+          <div class="hw-spec-v">32-pt DI slot 2, 32-pt DO slot 3, PM190 5A PSU</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Axis Object</div>
+          <div class="hw-spec-v"><code>TO_PositioningAxis V5.0</code> rotary in deg/(deg&middot;s), DSC with position control in PLC</div>
+        </div>
+        <div class="hw-spec">
+          <div class="hw-spec-k">Move</div>
+          <div class="hw-spec-v">+1000&deg; &rarr; 1 s dwell &rarr; &minus;1000&deg; at 20 &deg;/s, 500 &deg;/s&sup2;</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PACKML STATE MACHINE -->
+<section id="packml">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>04</span>Shared PackML State Machine</div>
+      <h2 class="section-title">Six states, <em class="p">two</em> modes, identical semantics.</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        Both projects implement the same simplified <strong>ISA-TR88 PackML</strong> state model
+        with two modes (Manual, Produce) and six states. A first-scan rung latches Manual mode
+        and Aborted state so the unit comes up known; <code>HMI_I_ModeChgReq</code> is
+        edge-triggered to toggle between modes (only while Aborted). Indicator lamps drive
+        <code>LA_IDLE</code> / <code>LA_EXECUTE</code> / <code>LA_ABORTED</code> with a 1 Hz
+        flash timer that distinguishes the transient states (Resetting, Starting, Aborting) from
+        their steady counterparts.
+      </p>
+    </div>
+
+    <div class="packml-states">
+      <div class="packml-title">PACKML / SIMPLIFIED STATE FLOW</div>
+      <div class="state-row">
+        <div class="state idle">
+          <div class="state-name">Idle</div>
+          <div class="state-bit">UP_Idle</div>
+          <div class="state-desc">Ready &mdash; awaiting START_PB</div>
+          <div class="state-arrow">&#9654;</div>
+        </div>
+        <div class="state starting">
+          <div class="state-name">Starting</div>
+          <div class="state-bit">UP_Starting</div>
+          <div class="state-desc">Wait for all axes to start</div>
+          <div class="state-arrow">&#9654;</div>
+        </div>
+        <div class="state execute">
+          <div class="state-name">Execute</div>
+          <div class="state-bit">UP_Execute</div>
+          <div class="state-desc">Runs 10-step CM00 sequence</div>
+          <div class="state-arrow">&#9654;</div>
+        </div>
+        <div class="state aborting">
+          <div class="state-name">Aborting</div>
+          <div class="state-bit">UP_Aborting</div>
+          <div class="state-desc">Stop or motion error</div>
+          <div class="state-arrow">&#9654;</div>
+        </div>
+        <div class="state aborted">
+          <div class="state-name">Aborted</div>
+          <div class="state-bit">UP_Aborted</div>
+          <div class="state-desc">Default at power-up</div>
+          <div class="state-arrow">&#9654;</div>
+        </div>
+        <div class="state resetting">
+          <div class="state-name">Resetting</div>
+          <div class="state-bit">UP_Resetting</div>
+          <div class="state-desc">RESET_PB clears errors</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="figs">
+      <div class="fig r">
+        <img src="images/axis_fig_clogix_packml.png" alt="Rockwell UP01_PackML ladder">
+        <div class="fig-label">Fig. 03 &middot; Rockwell UP01_PackML</div>
+        <div class="fig-caption"><strong>Studio 5000 ladder.</strong> First-scan initialization, mode toggle via <code>HMI_I_ModeChgReq</code> one-shots with <code>UP_Aborted</code> as the guard, mutual exclusion between <code>Mode_Manual</code> and <code>Mode_Produce</code>, and the UP_ state latches at the bottom of the rung.</div>
+      </div>
+      <div class="fig s">
+        <img src="images/axis_fig_s7_packml.png" alt="Siemens FB105 UN01_UP01_PackML">
+        <div class="fig-label">Fig. 04 &middot; Siemens FB105 UP01_PackML</div>
+        <div class="fig-caption"><strong>TIA Portal LAD.</strong> Network 9 first-scan sets <code>UP_Aborted</code> and resets every other state; Network 11 Idle &rarr; Starting on <code>START_PB</code>; Network 12 Starting &rarr; Execute on <code>EM_Starting_Done</code>; Network 14 transitions to Aborting from any state on <code>STOP_PB</code> or a <code>P_TRIG</code>-edged motion error.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- IDIOM TRANSLATION TABLE -->
+<section id="idioms">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>05</span>Idiom Translation</div>
+      <h2 class="section-title">Same intent, <em class="p">different</em> dialect.</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        The most valuable byproduct of this lab is the side-by-side fluency you build with both
+        vendor idioms. Every Rockwell construct has a direct Siemens counterpart that <em>looks</em>
+        different but does the same job. This is the translation table any controls engineer
+        needs to read both worlds.
+      </p>
+    </div>
+
+    <div class="idiom-table">
+      <div class="idiom-row header">
+        <div class="idiom-cell">CONCEPT</div>
+        <div class="idiom-cell h-r">ROCKWELL</div>
+        <div class="idiom-cell h-s">SIEMENS</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Latch / Unlatch state bit</div>
+        <div class="idiom-cell idiom-r">OTL / OTU coils</div>
+        <div class="idiom-cell idiom-s">S / R coils</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Rising-edge detect</div>
+        <div class="idiom-cell idiom-r">ONS instruction</div>
+        <div class="idiom-cell idiom-s">P_TRIG block</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Relative move</div>
+        <div class="idiom-cell idiom-r">MAM &mdash; Motion Axis Move</div>
+        <div class="idiom-cell idiom-s">MC_MoveRelative</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Drive enable</div>
+        <div class="idiom-cell idiom-r">MSO &mdash; Motion Servo On</div>
+        <div class="idiom-cell idiom-s">MC_Power</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Motion task</div>
+        <div class="idiom-cell idiom-r">Motion Group, 2.0 ms update</div>
+        <div class="idiom-cell idiom-s">MC-Servo OB91, Factor = 2</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Axis object</div>
+        <div class="idiom-cell idiom-r">AXIS_CIP_DRIVE</div>
+        <div class="idiom-cell idiom-s">TO_PositioningAxis V5.0</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Working motion-block scope</div>
+        <div class="idiom-cell idiom-r">Wrk_MI_Move1 / 2 program tags</div>
+        <div class="idiom-cell idiom-s">Multi-instance DB in FB Static</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Position-loop tuning</div>
+        <div class="idiom-cell idiom-r">Studio 5000 Autotune</div>
+        <div class="idiom-cell idiom-s">Kv / Precontrol / Smoothing</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Live trend / trace</div>
+        <div class="idiom-cell idiom-r">Studio 5000 Trends</div>
+        <div class="idiom-cell idiom-s">TIA Portal Trace</div>
+      </div>
+      <div class="idiom-row">
+        <div class="idiom-cell idiom-concept">Fieldbus</div>
+        <div class="idiom-cell idiom-r">EtherNet/IP + CIP Motion</div>
+        <div class="idiom-cell idiom-s">PROFINET IRT + PROFIdrive</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PHASES -->
+<section id="phases">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>06</span>Phase Progression</div>
+      <h2 class="section-title">Build it on red, then port it to teal.</h2>
+    </div>
+
+    <div class="phase-list">
+      <div class="phase r">
+        <div class="phase-num">01</div>
+        <div>
+          <div class="phase-tag">Rockwell / Studio 5000</div>
+          <h3 class="phase-title">Motion foundation &mdash; tree, drive, axis</h3>
+        </div>
+        <div class="phase-body">
+          Controller tree populated with 1756-IB32 (slot 1), 1756-OB16I (slot 2), and 1756-EN2TR
+          (slot 7) with Time Sync and Motion enabled. MainTask switched to a 30 ms periodic task,
+          programs <code>UN01_ExampleMachine</code> + <code>EM01_Axis01</code> added with their
+          routines. Kinetix 5300 drive added under EN2TR, <code>Axis_1</code> created and
+          assigned to a Motion Group with 2.0 ms base update. Full axis properties commissioned:
+          Motor catalog, Scaling (Linear Actuator in mm via the belt-and-pulley), Polarity, Load
+          (Load Ratio 2.0), Position Loop (6.5 Hz, 100 % FF), Velocity Loop (26 Hz), Torque Loop
+          (1000 Hz), Planner, Homing (Active mode, NO limit), and Actions.
+        </div>
+      </div>
+
+      <div class="phase r">
+        <div class="phase-num">02</div>
+        <div>
+          <div class="phase-tag">Rockwell / Ladder</div>
+          <h3 class="phase-title">PackML state machine + 10-step motion procedure</h3>
+        </div>
+        <div class="phase-body">
+          <code>UP01_PackML</code> implements the 6-state model with Manual/Produce mode toggle.
+          <code>CM00_Procedure</code> holds the ten-step motion sequence:
+          <strong>Step_1</strong> MSO drive enable; <strong>Step_2</strong> 500 ms dwell;
+          <strong>Step_3</strong> MAM to +100 mm via <code>Wrk_MI_Move1</code>;
+          <strong>Step_4</strong> 1 s dwell; <strong>Step_5</strong> MAM to &minus;100 mm via
+          <code>Wrk_MI_Move2</code>; <strong>6&ndash;9</strong> MSF cleanup;
+          <strong>Step_10</strong> latches <code>EM_ExecuteDone</code>. Error handling centralized
+          &mdash; any <code>.ER</code> bit one-shots into <code>EM_ProcedureError</code> which the
+          unit consumes to transition into Aborting.
+        </div>
+      </div>
+
+      <div class="phase r">
+        <div class="phase-num">03</div>
+        <div>
+          <div class="phase-tag">Rockwell / Tuning</div>
+          <h3 class="phase-title">Autotune, then manual loop tuning with trends</h3>
+        </div>
+        <div class="phase-body">
+          <strong>Autotune</strong> run first (Basic / Medium / Rigid, 100 mm travel, 100 mm/s,
+          Forward Bi-directional). Trend built with <code>CommandPosition</code>,
+          <code>PositionError</code>, <code>CommandVelocity</code>, <code>VelocityError</code>,
+          <code>CurrentCommand</code> in isolated-plot mode. <strong>Manual tune</strong>: velocity
+          loop tuned first by doubling Vp bandwidth until oscillation, then halving; Vi bandwidth
+          started at &frac14; of Vp and adjusted to zero error. Position loop then tuned on top.
+          Jerk swept at 10 % / 50 % / 100 % of MAM time and compared against a trapezoidal profile.
+        </div>
+      </div>
+
+      <div class="phase s">
+        <div class="phase-num">04</div>
+        <div>
+          <div class="phase-tag">Siemens / TIA Portal V18</div>
+          <h3 class="phase-title">Port the design across the vendor gap</h3>
+        </div>
+        <div class="phase-body">
+          Opened from the <code>Axis_Example_Blank</code> template (already containing global tags
+          and the <code>DB10 PackML</code> global data block). PROFINET X1 at <code>192.168.0.1</code>,
+          X2 at <code>131.151.52.197</code>. SINAMICS S120 CU310-2 PN V5.2 dragged from the
+          Hardware Catalog, connected to the PN interface, configured DO SERVO with Standard
+          Telegram 5, renamed <code>servo-3</code> at <code>.13</code>. Isochronous mode enabled,
+          processor set Sync Master, 4 ms Send Clock, 20 % comm load. <code>TO_PositioningAxis V5.0</code>
+          axis <code>Axis_1</code> configured as rotary deg/(deg&middot;s), DSC with PLC position
+          control, MC-Servo OB91 Factor = 2.
+        </div>
+      </div>
+
+      <div class="phase s">
+        <div class="phase-num">05</div>
+        <div>
+          <div class="phase-tag">Siemens / LAD</div>
+          <h3 class="phase-title">Rebuild PackML and CM00 in the FB model</h3>
+        </div>
+        <div class="phase-body">
+          <code>FB105 UN01_UP01_PackML</code> added to the <code>0_UN01_ExampleMachine</code>
+          group, PackML ladder re-entered in LAD with local Static tags for
+          <code>ModeChgTrans</code> / <code>Lamp_Flash_Tmr</code>, <code>P_TRIG</code> blocks in
+          place of Rockwell <code>ONS</code>, and S / R coils on the six state bits in the
+          <code>PackML</code> global DB. <code>EM01_Axis01</code> got <code>FB201 CM00_Procedure</code>,
+          <code>FB203 CM02_ServoAxisObject</code>, and <code>FB204 CM03_ServoAxisJog</code> as
+          multi-instance DBs inside <code>FB200 EM01_00_Main</code>. CM00 motion sequence rebuilt
+          with <code>MC_MoveRelative</code> in place of MAM, parameterized for &plusmn;1000&deg;
+          at 20&deg;/s and 500 &deg;/s&sup2;.
+        </div>
+      </div>
+
+      <div class="phase s">
+        <div class="phase-num">06</div>
+        <div>
+          <div class="phase-tag">Siemens / Trace</div>
+          <h3 class="phase-title">Tune the Kv loop, sweep precontrol &amp; smoothing</h3>
+        </div>
+        <div class="phase-body">
+          Online via TIA Portal Go online on the PN/IE interface. Watch Window set up with
+          <code>HMI_I_JogPositive</code> / <code>JogNegative</code>,
+          <code>HMI_I_SelectJogAxis = 1</code>, <code>Par_Jog_Speed = 20.0</code>,
+          <code>Par_Jog_Accel = Decel = 500.0</code>. SCL added to compute
+          <code>Axis_1_PositionError</code> and <code>Axis_1_VelocityError</code>. Trace built
+          with five pens. Velocity loop is pre-tuned in STARTER, so only the position loop tuned
+          in the PLC &mdash; <code>Kv</code> doubled from default 10 until ringing, then halved.
+          Precontrol swept 25 %, 50 %, 100 %; smoothing time swept 0.05 s, 0.1 s, 0.2 s; finally
+          jerk-limited vs. trapezoidal (jerk = &minus;1.0) compared head-to-head.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CM00 / EM FIGURE -->
+<section id="cm00">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>07</span>The CM00 Procedure</div>
+      <h2 class="section-title">Ten steps, one error <em class="p">funnel</em>.</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        The motion procedure that runs when PackML is in Execute. Rung 1 is the first-scan
+        initializer that COPs a default <code>MI_Init</code> motion instruction into both working
+        tags. Rung 2 unlatches every <code>Step_1</code> &hellip; <code>Step_10</code> bit on
+        first scan, during <code>UP_Resetting</code>, and during <code>UP_Idle</code>, so the
+        procedure always restarts clean from Step_1. Rung 3 sets the
+        <code>No_Steps_Active</code> helper bit when none of the ten step bits is high &mdash; the
+        condition the unit uses to seed Step_1 when Execute begins.
+      </p>
+    </div>
+
+    <div class="figs single">
+      <div class="fig r">
+        <img src="images/axis_fig_clogix_cm00.png" alt="Rockwell CM00_Procedure ladder">
+        <div class="fig-label">Fig. 05 &middot; Rockwell CM00_Procedure &mdash; EXECUTE state motion steps</div>
+        <div class="fig-caption">Rung 1 COPs <code>MI_Init</code> into <code>Wrk_MI_Move1</code> and <code>Wrk_MI_Move2</code> on first scan. Rung 2 unlatches every step bit on first scan / <code>UP_Resetting</code> / <code>UP_Idle</code>. Rung 3 derives <code>No_Steps_Active</code> from the AND-NOT of all ten step bits. Subsequent rungs (off-screen) hold the actual MSO / dwell / MAM / MSF chain through Step_10 and the centralized <code>EM_ProcedureError</code> latch.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SKILLS -->
+<section id="skills">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>08</span>Skills Demonstrated</div>
+      <h2 class="section-title">The full <em class="p">cross-vendor</em> skill set.</h2>
+    </div>
+
+    <div class="skills-grid">
+      <div class="skill">
+        <div class="skill-name">Programming</div>
+        <ul>
+          <li>Ladder in Studio 5000 + LAD in TIA Portal</li>
+          <li>UP &rarr; EM &rarr; CM hierarchy on both</li>
+          <li>MAM (Rockwell) + MC_MoveRelative (Siemens)</li>
+          <li>OTL/OTU vs. S/R coil idioms</li>
+          <li>ONS vs. P_TRIG edge detection</li>
+        </ul>
+      </div>
+      <div class="skill">
+        <div class="skill-name">State Machine</div>
+        <ul>
+          <li>ISA-TR88 PackML simplified state model</li>
+          <li>Idle / Starting / Execute / Aborting / Aborted / Resetting</li>
+          <li>Manual / Produce mode handling</li>
+          <li>1 Hz indicator-lamp flash for transient states</li>
+          <li>Centralized error propagation from motion blocks</li>
+        </ul>
+      </div>
+      <div class="skill">
+        <div class="skill-name">Hardware</div>
+        <ul>
+          <li>Kinetix 5300 EtherNet/IP drive config</li>
+          <li>SINAMICS S120 PROFINET drive config</li>
+          <li>Belt-and-pulley scaling for linear actuator</li>
+          <li>Absolute encoder Std Telegram 5</li>
+          <li>Time Sync / Isochronous mode</li>
+        </ul>
+      </div>
+      <div class="skill">
+        <div class="skill-name">Networking</div>
+        <ul>
+          <li>EtherNet/IP I/O trees in Studio 5000</li>
+          <li>PROFINET IRT in TIA Portal</li>
+          <li>IO-controller / sync-master configuration</li>
+          <li>4 ms Send Clock, 20 % comm load</li>
+        </ul>
+      </div>
+      <div class="skill">
+        <div class="skill-name">Tuning</div>
+        <ul>
+          <li>Studio 5000 Autotune workflow</li>
+          <li>Velocity-loop + position-loop manual tuning</li>
+          <li>Kv / Precontrol / smoothing-time sweeps</li>
+          <li>S-curve vs. trapezoidal jerk comparison</li>
+          <li>Live trend / trace capture and analysis</li>
+        </ul>
+      </div>
+      <div class="skill">
+        <div class="skill-name">Cross-Vendor</div>
+        <ul>
+          <li>Porting same logical design across ecosystems</li>
+          <li>Translating Rockwell idioms to Siemens equivalents</li>
+          <li>Recognizing what is intrinsic vs. vendor-flavored</li>
+          <li>Reading both projects fluently on the floor</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OUTCOME -->
+<section id="outcome" style="border-bottom: none;">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>09</span>Outcome</div>
+      <h2 class="section-title">Two working builds, <em class="p">one</em> fluency.</h2>
+    </div>
+
+    <div class="outcome">
+      <p>
+        The final deliverable is a pair of working single-axis motion projects that implement the
+        same logical design on two different vendor ecosystems. The <em class="r">Rockwell
+        project</em> drives a Kinetix 5300 servo through a 100 mm forward / 1 s dwell / 100 mm
+        reverse cycle with autotune-derived S-curve profiles, a PackML-compliant unit procedure,
+        and live trend capture for tuning verification. The <em class="s">Siemens project</em>
+        drives a SINAMICS S120 servo through a +1000&deg; / 1 s dwell / &minus;1000&deg; cycle
+        with the same PackML state logic rebuilt in F-block LAD and a matching trace capture.
+        Beyond the working demos, the most valuable outcome was the back-to-back experience of
+        expressing the exact same logical design in two different vendor idioms &mdash; OTL/OTU
+        vs. S/R coils, ONS vs. P_TRIG, Motion Axis Move vs. MC_MoveRelative, Motion Group / 2.0 ms
+        update vs. MC-Servo OB91 / Factor 2, Studio 5000 Autotune vs. TIA Portal Kv / Precontrol
+        &mdash; which is precisely the translation any controls engineer needs to make fluently on
+        the factory floor.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div>Simple Motion Control &nbsp;//&nbsp; EE 5345 Lab 1R / 1S</div>
+    <div>Studio 5000 &nbsp;&middot;&nbsp; TIA Portal V18 &nbsp;&middot;&nbsp; PackML</div>
+  </div>
+</footer>
+
+</body>
+</html>
