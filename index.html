@@ -1323,6 +1323,41 @@
         <div class="fig-caption">Rung 1 COPs <code>MI_Init</code> into <code>Wrk_MI_Move1</code> and <code>Wrk_MI_Move2</code> on first scan. Rung 2 unlatches every step bit on first scan / <code>UP_Resetting</code> / <code>UP_Idle</code>. Rung 3 derives <code>No_Steps_Active</code> from the AND-NOT of all ten step bits. Subsequent rungs (off-screen) hold the actual MSO / dwell / MAM / MSF chain through Step_10 and the centralized <code>EM_ProcedureError</code> latch.</div>
       </div>
     </div>
+
+    <h3 style="font-family: var(--serif); font-size: 22px; color: var(--ink); margin-top: 48px; margin-bottom: 8px; font-weight: 400;">The actual move &mdash; MAM instruction detail</h3>
+    <p style="color: var(--ink-dim); font-size: 13.5px; max-width: 820px; margin-bottom: 24px;">
+      Inside Step_1 / Step_6 on the Rockwell side, the heavy lifting is a single MAM (Motion Axis
+      Move) instruction parameterized for the tuned profile. On Step_1 PC completion, the rung
+      unlatches Step_1 and latches Step_2 &mdash; the canonical OTL/OTU handoff that drives the
+      entire ten-step sequence.
+    </p>
+
+    <div class="figs single">
+      <div class="fig r">
+        <img src="images/rockwell_mam.png" alt="Rockwell MAM instruction Step_1">
+        <div class="fig-label">Fig. 06 &middot; Rockwell MAM Instruction &mdash; Step_1 Axis +Move 1 Unit</div>
+        <div class="fig-caption"><strong>Studio 5000 MAM detail.</strong> Axis = <code>Ref_ServoAxis</code> (Axis_1), Motion Control = <code>Wrk_MI_Move1</code>, Move Type 1 (Absolute), Position 1, Speed 50 units/sec, Accel/Decel Rate 500 units/sec&sup2;, S-Curve profile with Accel/Decel Jerk = 10 % of Time, Merge Disabled. On <code>Wrk_MI_Move1.PC</code> the rung unlatches Step_1 and latches Step_2.</div>
+      </div>
+    </div>
+
+    <h3 style="font-family: var(--serif); font-size: 22px; color: var(--ink); margin-top: 48px; margin-bottom: 8px; font-weight: 400;">Siemens EM01 &mdash; FB call orchestration</h3>
+    <p style="color: var(--ink-dim); font-size: 13.5px; max-width: 820px; margin-bottom: 24px;">
+      The Siemens equivalent doesn't have routines under a program &mdash; instead, <code>EM01_00_Main
+      [FB200]</code> calls three sub-FBs in sequence. Network 3 wires <code>CM00_Procedure</code>,
+      <code>CM03_ServoAxisJog</code>, and <code>CM02_ServoAxisObject</code> with the
+      <code>Ref_ServoAxis</code> reference to <code>Axis_1</code> as an InOut parameter, and
+      <code>Par_Jog_Speed</code> / <code>Par_Jog_Accel</code> / <code>Par_Jog_Decel</code> flowing
+      through as jog parameters &mdash; the exact same wiring the Rockwell project does through
+      shared program tags.
+    </p>
+
+    <div class="figs single">
+      <div class="fig s">
+        <img src="images/siemens_em01.png" alt="Siemens EM01_00_Main FB200">
+        <div class="fig-label">Fig. 07 &middot; Siemens EM01_00_Main [FB200] &mdash; Network 3 FB Calls</div>
+        <div class="fig-caption"><strong>TIA Portal V18 LAD.</strong> Static area declares <code>CM00_Procedure</code>, <code>CM02_ServoAxisObject</code>, and <code>CM03_ServoAxisJog</code> as multi-instance DBs. Network 2 moves <code>20.0 / 500.0 / 500.0</code> into <code>Par_Jog_Speed</code> / <code>Accel</code> / <code>Decel</code> on first scan. Network 3 calls FB201 (CM00 procedure with <code>MotionStepsError</code> and <code>No_Steps_Active</code> outputs), FB204 (jog with axis &amp; speed/accel/decel), and FB203 (servo axis object). Each FB takes <code>#EM_Number</code> as input and <code>Axis_1</code> as <code>Ref_ServoAxis</code>.</div>
+      </div>
+    </div>
   </div>
 </section>
 
