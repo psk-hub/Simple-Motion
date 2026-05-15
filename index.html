@@ -1097,11 +1097,63 @@
   </div>
 </section>
 
+<!-- LAMP FLASH + DB10 SHARED DATA BLOCK -->
+<section id="lamp-flash">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-num"><span>05</span>Lamp Flash &amp; Shared DB</div>
+      <h2 class="section-title">Same <em class="p">TON</em>, different syntax.</h2>
+    </div>
+
+    <div class="prose">
+      <p>
+        A small but instructive cross-vendor detail: indicator lamps in PackML have to distinguish
+        <em>steady</em> states (Idle, Execute, Aborted) from <em>transient</em> states (Resetting,
+        Starting, Aborting). Both platforms solve it the same way &mdash; a 1 Hz TON ticking a
+        <code>Lamp_Flash</code> bit, then per-state output rungs that OR the steady-state bit with
+        the transient state AND <code>Lamp_Flash</code>. Different syntactic dressing, identical
+        logic.
+      </p>
+    </div>
+
+    <div class="figs">
+      <div class="fig r">
+        <img src="images/rockwell_mainroutine.png" alt="Rockwell UN01 MainRoutine indicator lamps">
+        <div class="fig-label">Fig. 08 &middot; Rockwell UN01 MainRoutine &mdash; Indicator Lamps</div>
+        <div class="fig-caption"><strong>Studio 5000.</strong> Rung 1 is the JSR to <code>UP01_PackML</code>. Rung 3 self-resetting TON with <code>Lamp_Flash_Tmr.DN</code> on the rung condition (1000 ms preset). Rung 4 compares <code>Lamp_Flash_Tmr.ACC &gt; 500</code> to produce the 50 % duty <code>Lamp_Flash</code> bit. Rungs 5-7 drive <code>LA_IDLE</code> / <code>LA_EXECUTE</code> / <code>LA_ABORTED</code> on <code>Local:2:O</code> with the OR-pattern: steady state, OR transient state AND Lamp_Flash.</div>
+      </div>
+      <div class="fig s">
+        <img src="images/siemens_un01_main.png" alt="Siemens FB100 UN01_00_Main">
+        <div class="fig-label">Fig. 09 &middot; Siemens UN01_00_Main [FB100] &mdash; Same Pattern</div>
+        <div class="fig-caption"><strong>TIA Portal.</strong> Network 1 calls <code>FB105 UN01_UP01_PackML</code>. Network 2 holds the <code>Lamp_Flash_Tmr</code> TON_TIME instance (<code>T#1s</code> preset, self-resetting via <code>#Lamp_Flash_Tmr.Q</code>-NC). Network 3 compares <code>Lamp_Flash_Tmr.ET &gt;= T#500ms</code> for the flash bit. Networks 4-6 drive Q4.0 LA_IDLE, Q4.1 LA_EXECUTE, etc. with the same steady-OR-transient&amp;flash structure as Rockwell.</div>
+      </div>
+    </div>
+
+    <h3 style="font-family: var(--serif); font-size: 22px; color: var(--ink); margin-top: 48px; margin-bottom: 8px; font-weight: 400;">Shared PackML data block &mdash; DB10</h3>
+    <p style="color: var(--ink-dim); font-size: 13.5px; max-width: 820px; margin-bottom: 24px;">
+      Where the Rockwell project uses program-scoped tags imported from the
+      <code>Axis_Example_CLogix_PackML_Tags.csv</code>, the Siemens project bundles every inter-FB
+      PackML signal into a single global data block, <code>DB10 PackML</code>. Every FB in both
+      the unit and equipment programs references this DB &mdash; it is what lets the
+      <code>FB105 UP01_PackML</code> on the unit side communicate state to every CM00 on the
+      equipment side without explicit InOut wiring.
+    </p>
+
+    <div class="figs single">
+      <div class="fig s">
+        <img src="images/siemens_cm00_proc.png" alt="Siemens DB10 PackML data block">
+        <div class="fig-label">Fig. 10 &middot; Siemens DB10 PackML &mdash; Shared State Data Block</div>
+        <div class="fig-caption"><strong>Global DB declaration.</strong> Boolean state bits (<code>Mode_Manual</code>, <code>Mode_Produce</code>, <code>UP_Idle</code>, <code>UP_Starting</code>, <code>UP_Execute</code>, <code>UP_Aborting</code>, <code>UP_Aborted</code>, <code>UP_Resetting</code>) plus five <code>Array[0..31] of Bool</code> per-EM completion arrays (<code>EM_Aborting_Done</code>, <code>EM_Execute_Done</code>, <code>EM_Resetting_Done</code>, <code>EM_Starting_Done</code>, <code>EM_MotionInstError</code>) &mdash; one slot per equipment module instance, indexed by <code>EM_Number</code>.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- IDIOM TRANSLATION TABLE -->
 <section id="idioms">
   <div class="container">
     <div class="section-header">
-      <div class="section-num"><span>05</span>Idiom Translation</div>
+      <div class="section-num"><span>06</span>Idiom Translation</div>
       <h2 class="section-title">Same intent, <em class="p">different</em> dialect.</h2>
     </div>
 
@@ -1178,7 +1230,7 @@
 <section id="phases">
   <div class="container">
     <div class="section-header">
-      <div class="section-num"><span>06</span>Phase Progression</div>
+      <div class="section-num"><span>07</span>Phase Progression</div>
       <h2 class="section-title">Build it on red, then port it to teal.</h2>
     </div>
 
@@ -1300,7 +1352,7 @@
 <section id="cm00">
   <div class="container">
     <div class="section-header">
-      <div class="section-num"><span>07</span>The CM00 Procedure</div>
+      <div class="section-num"><span>08</span>The CM00 Procedure</div>
       <h2 class="section-title">Ten steps, one error <em class="p">funnel</em>.</h2>
     </div>
 
@@ -1365,7 +1417,7 @@
 <section id="skills">
   <div class="container">
     <div class="section-header">
-      <div class="section-num"><span>08</span>Skills Demonstrated</div>
+      <div class="section-num"><span>09</span>Skills Demonstrated</div>
       <h2 class="section-title">The full <em class="p">cross-vendor</em> skill set.</h2>
     </div>
 
@@ -1436,7 +1488,7 @@
 <section id="outcome" style="border-bottom: none;">
   <div class="container">
     <div class="section-header">
-      <div class="section-num"><span>09</span>Outcome</div>
+      <div class="section-num"><span>10</span>Outcome</div>
       <h2 class="section-title">Two working builds, <em class="p">one</em> fluency.</h2>
     </div>
 
